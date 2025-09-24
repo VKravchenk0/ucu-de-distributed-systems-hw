@@ -1,0 +1,20 @@
+syntax = "proto3";
+package common;
+
+service ReplicationService {
+    rpc ReplicateMessage(ReplicationRequest) returns (ReplicationResponse);
+}
+
+message ReplicationRequest {
+    string message = 1;
+}
+
+message ReplicationResponse {
+    Status status = 1;
+}
+
+enum Status {
+    STATUS_UNSPECIFIED = 0;
+    SUCCESS = 1;
+    FAILURE = 2;
+}
