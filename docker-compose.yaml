@@ -1,0 +1,23 @@
+services:
+  master:
+    build:
+      context: .
+      dockerfile: master/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - SECONDARY_ADDRESSES=secondary1:50051,secondary2:50051
+
+  secondary1:
+    build:
+      context: .
+      dockerfile: secondary/Dockerfile
+    ports:
+      - "8001:8001"
+
+  secondary2:
+    build:
+      context: .
+      dockerfile: secondary/Dockerfile
+    ports:
+      - "8002:8001"
