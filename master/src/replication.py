@@ -3,6 +3,8 @@ import asyncio
 from common import replication_pb2, replication_pb2_grpc
 import logging as log
 
+from common.dto import MessageDto
+
 
 class ReplicationManager:
     def __init__(self, addresses: list[str]):
@@ -22,8 +24,8 @@ class ReplicationManager:
             await dest['channel'].close()
         log.info("Closed all connections")
 
-    async def replicate_message(self, message: str):
-        request = replication_pb2.ReplicationRequest(message=message)
+    async def replicate_message(self, message_dto: MessageDto):
+        request = replication_pb2.ReplicationRequest(message_id=message_dto.message_id, message_body=message_dto.message_body)
 
         tasks = [
             dest['stub'].ReplicateMessage(request)
@@ -34,7 +36,7 @@ class ReplicationManager:
 
         for dest, response in zip(self.destinations, responses):
             log.info(
-                f"Message replicated to {dest['address']}: "
+                f"Message {message_dto.message_id} replicated to {dest['address']}: "
                 f"{replication_pb2.Status.Name(response.status)}"
             )
 
