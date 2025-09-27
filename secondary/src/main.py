@@ -16,15 +16,24 @@ log.basicConfig(level=log.INFO,
                 datefmt='%Y-%m-%dT%H:%M:%S')
 
 replicated_messages: List[MessageDto] = []
+replicated_messages_lock = asyncio.Lock()
+
+def random_delay():
+    delay_sec = randint(3,6)
+    log.info(f"Introducing { delay_sec } seconds of delay")
+    sleep(delay_sec)
 
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
     async def ReplicateMessage(self, request, context):
-        log.info(f"Received: {request.message_id} | {request.message_body}")
-        delay_sec = randint(3,6)
-        log.info(f"Introducing { delay_sec } seconds of delay")
-        sleep(delay_sec)
-        replicated_messages.append(MessageDto(request.message_id, request.message_body))
-        log.info(f'Added message {request.message_id} | { request.message_body } to replicated list')
+        log.info(f"Received grpc request. message_id: {request.message_id} | message_body: {request.message_body}")
+        
+        random_delay()
+
+        message_dto = MessageDto(request.message_id, request.message_body)
+        async with replicated_messages_lock:
+            replicated_messages.append(message_dto)
+
+        log.info(f'Added message {message_dto} to replicated list')
         return replication_pb2.ReplicationResponse(status=replication_pb2.Status.SUCCESS)
 
 
