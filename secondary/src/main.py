@@ -3,26 +3,37 @@ from time import sleep
 
 import asyncio
 import contextlib
+from typing import List
 import grpc
 from fastapi import FastAPI
 from common import replication_pb2, replication_pb2_grpc
 import logging as log
 
+from common.dto import MessageDto
+
 log.basicConfig(level=log.INFO, 
                 format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                 datefmt='%Y-%m-%dT%H:%M:%S')
 
-replicated_messages = []
+replicated_messages: List[MessageDto] = []
+replicated_messages_lock = asyncio.Lock()
 
+def random_delay():
+    delay_sec = randint(3,6)
+    log.info(f"Introducing { delay_sec } seconds of delay")
+    sleep(delay_sec)
 
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
     async def ReplicateMessage(self, request, context):
-        log.info(f"Received: {request.message}")
-        delay_sec = randint(3,6)
-        log.info(f"Introducing { delay_sec } seconds of delay")
-        sleep(delay_sec)
-        replicated_messages.append(request.message)
-        log.info(f'Added message { request.message } to replicated list')
+        log.info(f"Received grpc request. message_id: {request.message_id} | message_body: {request.message_body}")
+        
+        random_delay()
+
+        message_dto = MessageDto(request.message_id, request.message_body)
+        async with replicated_messages_lock:
+            replicated_messages.append(message_dto)
+
+        log.info(f'Added message {message_dto} to replicated list')
         return replication_pb2.ReplicationResponse(status=replication_pb2.Status.SUCCESS)
 
 
@@ -51,8 +62,8 @@ def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.get("/messages")
-    async def get_messages():
-        return {"messages": replicated_messages}
+    async def get_messages() -> List[str]:
+        return map(lambda m: m.message_body, replicated_messages)
 
     return app
 
