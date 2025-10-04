@@ -5,6 +5,8 @@ from typing import Dict, List
 import logging as log
 import asyncio
 
+from pydantic import BaseModel
+
 from common.dto import MessageDto
 from master.src.replication import ReplicationManager
 import master.src.settings as settings
@@ -17,6 +19,8 @@ latest_message_id = 0
 latest_message_id_lock = asyncio.Lock()
 
 messages: List[MessageDto] = []
+messages_lock = asyncio.Lock()
+
 replication_manager = ReplicationManager(settings.SECONDARY_ADDRESSES)
 
 # чекаю релізу python 3.14, щоб замінити на uuid v7
@@ -33,18 +37,23 @@ async def lifespan(app: FastAPI):
     yield
     await replication_manager.close()
 
+class MessageAppendRequest(BaseModel):
+    message: str
+    write_concern: int
+
 def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/messages")
-    async def append_message(message: str = Body(..., embed=False)) -> Dict[str, str]:
+    async def append_message(request: MessageAppendRequest) -> Dict[str, str]:
         message_id = await get_and_increment_message_id()
-        message_dto = MessageDto(message_id, message)
+        message_dto = MessageDto(message_id, request.message)
+        
+        async with messages_lock:
+            messages.append(message_dto)
 
-        messages.append(message_dto)
-
-        log.info(f"Message append request: {message}")
-        await replication_manager.replicate_message(message_dto)
+        log.info(f"Message append request: {request}")
+        await replication_manager.replicate_message(message_dto, request.write_concern)
         return {
             "status": "replicated"
         }
