@@ -36,12 +36,21 @@ class ReplicationManager:
             for dest in self.destinations
         ]
 
-        replication_counter = 1
+        if write_concern == 1:
+            log.info(f'write_concern is 1. Replicating on the background')
+            return write_concern
+
+        success_count = 1
 
         for replication in asyncio.as_completed(tasks):
             result = await replication
-            replication_counter = replication_counter + 1
-            print(f'Replication result: {result} | {type(result)}')
+            print(f'result: {result}')
+            if result:
+                success_count += 1
+                if success_count >= write_concern:
+                    log.info(f'Success count {success_count} has reached the write_concern of {write_concern}')
+                    return success_count
+        return success_count
 
 
     async def call_replica(self, dest, request) -> Tuple[str, Union[Exception, object]]:
