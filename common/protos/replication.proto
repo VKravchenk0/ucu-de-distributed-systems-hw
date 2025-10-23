@@ -6,8 +6,9 @@ service ReplicationService {
 }
 
 message ReplicationRequest {
-    string message_id = 1;
-    string message_body = 2;
+    int32 previous_message_id = 1;
+    int32 message_id = 2;
+    string message_body = 3;
 }
 
 message ReplicationResponse {

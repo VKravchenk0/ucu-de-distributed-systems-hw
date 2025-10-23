@@ -15,26 +15,65 @@ log.basicConfig(level=log.INFO,
                 format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                 datefmt='%Y-%m-%dT%H:%M:%S')
 
+replication_lock = asyncio.Lock()
+received_messages_ids: List[int] = []
+replication_buffer: List[MessageDto] = []
 replicated_messages: List[MessageDto] = []
-replicated_messages_lock = asyncio.Lock()
 
 def random_delay():
     delay_sec = randint(3,6)
     log.info(f"Introducing { delay_sec } seconds of delay")
     sleep(delay_sec)
 
+def message_is_duplicate(message_id: int) -> bool:
+    return received_messages_ids and message_id in received_messages_ids
+
+def incoming_message_in_correct_order(message_dto: MessageDto) -> bool:
+    message_dto.previous_message_id is None or \
+        (replicated_messages and message_dto.previous_message_id == replicated_messages[-1].message_id)
+
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
     async def ReplicateMessage(self, request, context):
-        log.info(f"Received grpc request. message_id: {request.message_id} | message_body: {request.message_body}")
+        log.info(f"Received grpc request. previous_message_id: {request.previous_message_id} | message_id: {request.message_id} | message_body: {request.message_body}")
+        message_dto = MessageDto(request.previous_message_id, request.message_id, request.message_body)
+        log.info(f"Received request to replicate message {message_dto}")
         
         random_delay()
+        
+        async with replication_lock:
+            if message_is_duplicate(message_dto.message_id):
+                log.info(f'Message {message_dto.message_id} was already received')
+                return replication_pb2.ReplicationResponse(status=replication_pb2.Status.SUCCESS)
 
-        message_dto = MessageDto(request.message_id, request.message_body)
-        async with replicated_messages_lock:
-            replicated_messages.append(message_dto)
+            received_messages_ids.append(message_dto.message_id)
+
+            if incoming_message_in_correct_order(message_dto):
+                replicated_messages.append(message_dto)
+                self._process_replication_buffer(message_dto)
+            else:
+                replication_buffer.append(message_dto)
 
         log.info(f'Added message {message_dto} to replicated list')
         return replication_pb2.ReplicationResponse(status=replication_pb2.Status.SUCCESS)
+    
+    def _process_replication_buffer(self, message_dto: MessageDto):
+        """
+        Рекурсивний метод, для обробки повідомлень, які прийшли поза чергою
+        перевіряє, чи вхідне повідомлення передує нульовому повідомленню з буферу. Якщо так - 
+        значить повідомлення з буферу дочекалось своєї черги, і можна переносити його в replicated_messages.
+        В разі успіху - рекурсивно викликаємо метод
+        """
+        # log.info(f'_process_replication_buffer start. Input message dto: {message_dto}')
+        if replication_buffer:
+            message_from_buffer = self.replication_buffer[0]
+            # log.info(f'First message from the buffer: {message_from_buffer}')
+
+            if message_from_buffer.previous_message_id == message_dto.message_id:
+                self.replication_buffer.pop(0)
+                self.replicated_messages.append(message_from_buffer)
+                self._process_replication_buffer(message_from_buffer)
+            else:
+                return
 
 
 async def serve_grpc(server: grpc.aio.Server):

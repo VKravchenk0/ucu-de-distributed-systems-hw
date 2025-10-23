@@ -27,6 +27,7 @@ class ReplicationManager:
 
     async def replicate_message(self, message_dto: MessageDto, write_concern: int):
         request = replication_pb2.ReplicationRequest(
+            previous_message_id=message_dto.previous_message_id, 
             message_id=message_dto.message_id, 
             message_body=message_dto.message_body
         )
@@ -44,7 +45,7 @@ class ReplicationManager:
 
         for replication in asyncio.as_completed(tasks):
             result = await replication
-            print(f'result: {result}')
+            log.info(f'Replication resultresult: {result}')
             if result:
                 success_count += 1
                 if success_count >= write_concern:

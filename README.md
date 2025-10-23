@@ -32,10 +32,9 @@
     ```
 6. Надсилаємо повідомлення
     ```bash
-    $ curl -X POST localhost:8000/messages -d 'msg1'
     $ curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
-        -d '{"message": "msg1", "write_concern": 2}'
+        -d '{"message": "msg5", "write_concern": 2}'
     {"status":"replicated"}
     ```
     <details>
