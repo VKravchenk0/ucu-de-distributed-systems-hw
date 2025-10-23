@@ -29,13 +29,17 @@ def message_is_duplicate(message_id: int) -> bool:
     return received_messages_ids and message_id in received_messages_ids
 
 def incoming_message_in_correct_order(message_dto: MessageDto) -> bool:
-    message_dto.previous_message_id is None or \
+    return message_dto.previous_message_id is None or \
         (replicated_messages and message_dto.previous_message_id == replicated_messages[-1].message_id)
 
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
     async def ReplicateMessage(self, request, context):
         log.info(f"Received grpc request. previous_message_id: {request.previous_message_id} | message_id: {request.message_id} | message_body: {request.message_body}")
-        message_dto = MessageDto(request.previous_message_id, request.message_id, request.message_body)
+        message_dto = MessageDto(
+                request.previous_message_id if request.HasField("previous_message_id") else None, 
+                request.message_id, 
+                request.message_body
+        )
         log.info(f"Received request to replicate message {message_dto}")
         
         random_delay()
