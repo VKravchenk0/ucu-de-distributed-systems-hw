@@ -26,6 +26,7 @@ class ReplicationManager:
         log.info("Closed all connections")
 
     async def replicate_message(self, message_dto: MessageDto, write_concern: int):
+        log.info(f'Replicating message dto: {message_dto}')
         request = replication_pb2.ReplicationRequest(
             previous_message_id=message_dto.previous_message_id, 
             message_id=message_dto.message_id, 
@@ -45,7 +46,7 @@ class ReplicationManager:
 
         for replication in asyncio.as_completed(tasks):
             result = await replication
-            log.info(f'Replication resultresult: {result}')
+            log.info(f'Replication result: {result}')
             if result:
                 success_count += 1
                 if success_count >= write_concern:
@@ -55,10 +56,6 @@ class ReplicationManager:
 
 
     async def call_replica(self, dest, request) -> Tuple[str, Union[Exception, object]]:
-        """
-        Send replication request to one destination.
-        Returns (address, response) or (address, Exception).
-        """
         try:
             response = await dest['stub'].ReplicateMessage(request)
             return dest['address'], response

@@ -20,7 +20,7 @@
     ```bash
     docker compose up --build
     ```
-2. Надсилаємо повідомлення
+2. Надсилаємо повідомлення, write_concern == 2
     ```bash
     $ curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
