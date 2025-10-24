@@ -92,7 +92,7 @@
     $ curl localhost:8002/messages
     ["msg1","msg2"]
     ```
-6. Надсилаємо друге повідомлення, write_concern == 1 (тільки Master)
+6. Надсилаємо третє повідомлення, write_concern == 3 (Master + два Secondary)
     ```bash
     $ curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
