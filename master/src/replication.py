@@ -1,3 +1,4 @@
+from typing import Tuple, Union
 import grpc
 import asyncio
 from common import replication_pb2, replication_pb2_grpc
@@ -24,21 +25,41 @@ class ReplicationManager:
             await dest['channel'].close()
         log.info("Closed all connections")
 
-    async def replicate_message(self, message_dto: MessageDto):
-        request = replication_pb2.ReplicationRequest(message_id=message_dto.message_id, message_body=message_dto.message_body)
+    async def replicate_message(self, message_dto: MessageDto, write_concern: int):
+        log.info(f'Replicating message dto: {message_dto}')
+        request = replication_pb2.ReplicationRequest(
+            previous_message_id=message_dto.previous_message_id, 
+            message_id=message_dto.message_id, 
+            message_body=message_dto.message_body
+        )
 
         tasks = [
-            dest['stub'].ReplicateMessage(request)
+            asyncio.create_task(self.call_replica(dest, request)) 
             for dest in self.destinations
         ]
 
-        responses = await asyncio.gather(*tasks)
+        if write_concern == 1:
+            log.info(f'write_concern is 1. Replicating on the background')
+            return write_concern
 
-        for dest, response in zip(self.destinations, responses):
-            log.info(
-                f"Message {message_dto.message_id} replicated to {dest['address']}: "
-                f"{replication_pb2.Status.Name(response.status)}"
-            )
+        success_count = 1
 
-        return responses
+        for replication in asyncio.as_completed(tasks):
+            result = await replication
+            log.info(f'Replication result: {result}')
+            if result:
+                success_count += 1
+                if success_count >= write_concern:
+                    log.info(f'Success count {success_count} has reached the write_concern of {write_concern}')
+                    return success_count
+        return success_count
+
+
+    async def call_replica(self, dest, request) -> Tuple[str, Union[Exception, object]]:
+        try:
+            response = await dest['stub'].ReplicateMessage(request)
+            return dest['address'], response
+        except Exception as e:
+            log.error(f"Replication to {dest['address']} failed: {e}")
+            return dest['address'], e
         

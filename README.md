@@ -1,5 +1,6 @@
-# Replicated log homework. Iteration 1.
+# Replicated log homework.
 
+## Ітерація 1
 Рішення побудоване на python, з використанням FastAPI для публічних ендпойнтів і gRPC для міжсервісної комунікації.
 
 Проект містить три модулі:
@@ -9,7 +10,129 @@
 
 Адреси secondary-серверів задаються на мастері через змінну середовища `SECONDARY_ADDRESSES`.
 
-## Інструкція з запуску
+## Ітерація 2
+- Додано параметр write_concern
+- Додано дедублікацію повідомлень
+- Ордерінг повідомлень: зроблено за вимогами ітерації 3 - додано тимчасовий буфер, в якому тримаються повідомлення, що отримані поза чергою
+
+## Запуск і перевірка
+1. Запуск в docker:
+    ```bash
+    docker compose up --build
+    ```
+2. Надсилаємо повідомлення, write_concern == 2 (Master + один secondary)
+    ```bash
+    $ curl -X POST "localhost:8000/messages" \
+        -H "Content-Type: application/json" \
+        -d '{"message": "msg1", "write_concern": 2}'
+    {"status":"replicated"}
+    ```
+    <details>
+        <summary>Лог</summary>
+
+        master-1      | 2025-10-24T14:58:06,645 INFO     [main.py:52] Message append request: message='msg1' write_concern=2
+        master-1      | 2025-10-24T14:58:06,645 INFO     [replication.py:29] Replicating message dto: MessageDto(previous_message_id=None, message_id=0, message_body='msg1')
+        secondary2-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=None, message_id=0, message_body='msg1')
+        secondary2-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:17] Introducing 2 seconds of delay
+        secondary1-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=None, message_id=0, message_body='msg1')
+        secondary1-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:17] Introducing 10 seconds of delay
+        secondary2-1  | 2025-10-24T14:58:08,664 INFO     [replication.py:48] Message 0 replicated
+        master-1      | 2025-10-24T14:58:08,668 INFO     [replication.py:49] Replication result: ('secondary2:50051', status: SUCCESS
+        master-1      | )
+        master-1      | 2025-10-24T14:58:08,668 INFO     [replication.py:53] Success count 2 has reached the write_concern of 2
+        master-1      | INFO:     172.20.0.1:38574 - "POST /messages HTTP/1.1" 200 OK ## Мастер повернув відповідь клієнту
+        secondary1-1  | 2025-10-24T14:58:16,658 INFO     [replication.py:48] Message 0 replicated
+    </details>
+3. Перевіряємо реплікацію
+    ```bash
+    # master
+    $ curl localhost:8000/messages
+    ["msg1"]
+
+    # secondary1
+    $ curl localhost:8001/messages
+    ["msg1"]
+
+    # secondary2
+    $ curl localhost:8002/messages
+    ["msg1"]
+    ```
+4. Надсилаємо друге повідомлення, write_concern == 1 (тільки Master)
+    ```bash
+    $ curl -X POST "localhost:8000/messages" \
+        -H "Content-Type: application/json" \
+        -d '{"message": "msg2", "write_concern": 1}'
+    {"status":"replicated"}
+    ```
+    <details>
+        <summary>Лог</summary>
+
+        master-1      | 2025-10-24T15:00:04,580 INFO     [main.py:52] Message append request: message='msg2' write_concern=1
+        master-1      | 2025-10-24T15:00:04,580 INFO     [replication.py:29] Replicating message dto: MessageDto(previous_message_id=0, message_id=1, message_body='msg2')
+        master-1      | 2025-10-24T15:00:04,580 INFO     [replication.py:42] write_concern is 1. Replicating on the background
+        master-1      | INFO:     172.20.0.1:58638 - "POST /messages HTTP/1.1" 200 OK ## Мастер повернув відповідь клієнту
+        secondary1-1  | 2025-10-24T15:00:04,582 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=0, message_id=1, message_body='msg2')
+        secondary1-1  | 2025-10-24T15:00:04,582 INFO     [replication.py:17] Introducing 10 seconds of delay
+        secondary2-1  | 2025-10-24T15:00:04,582 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=0, message_id=1, message_body='msg2')
+        secondary2-1  | 2025-10-24T15:00:04,583 INFO     [replication.py:17] Introducing 9 seconds of delay
+        secondary2-1  | 2025-10-24T15:00:13,584 INFO     [replication.py:48] Message 1 replicated
+        secondary1-1  | 2025-10-24T15:00:14,584 INFO     [replication.py:48] Message 1 replicated
+    </details>
+5. Перевіряємо реплікацію
+    ```bash
+    # master
+    $ curl localhost:8000/messages
+    ["msg1","msg2"]
+
+    # secondary1
+    $ curl localhost:8001/messages
+    ["msg1","msg2"]
+
+    # secondary2
+    $ curl localhost:8002/messages
+    ["msg1","msg2"]
+    ```
+6. Надсилаємо третє повідомлення, write_concern == 3 (Master + два Secondary)
+    ```bash
+    $ curl -X POST "localhost:8000/messages" \
+        -H "Content-Type: application/json" \
+        -d '{"message": "msg3", "write_concern": 3}'
+    {"status":"replicated"}
+    ```
+    <details>
+        <summary>Лог</summary>
+
+        master-1      | 2025-10-24T15:01:41,247 INFO     [main.py:52] Message append request: message='msg3' write_concern=3
+        master-1      | 2025-10-24T15:01:41,247 INFO     [replication.py:29] Replicating message dto: MessageDto(previous_message_id=1, message_id=2, message_body='msg3')
+        secondary1-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=1, message_id=2, message_body='msg3')
+        secondary1-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:17] Introducing 10 seconds of delay
+        secondary2-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=1, message_id=2, message_body='msg3')
+        secondary2-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:17] Introducing 3 seconds of delay
+        secondary2-1  | 2025-10-24T15:01:43,350 INFO     [replication.py:48] Message 2 replicated
+        master-1      | 2025-10-24T15:01:43,352 INFO     [replication.py:49] Replication result: ('secondary2:50051', status: SUCCESS
+        master-1      | )
+        secondary1-1  | 2025-10-24T15:01:50,351 INFO     [replication.py:48] Message 2 replicated
+        master-1      | INFO:     172.20.0.1:58998 - "POST /messages HTTP/1.1" 200 OK ## Мастер повернув відповідь клієнту
+        master-1      | 2025-10-24T15:01:50,352 INFO     [replication.py:49] Replication result: ('secondary1:50051', status: SUCCESS
+        master-1      | )
+        master-1      | 2025-10-24T15:01:50,352 INFO     [replication.py:53] Success count 3 has reached the write_concern of 3
+    </details>
+7. Перевіряємо реплікацію
+    ```bash
+    # master
+    $ curl localhost:8000/messages
+    ["msg1","msg2","msg3"]
+
+    # secondary1
+    $ curl localhost:8001/messages
+    ["msg1","msg2","msg3"]
+
+    # secondary2
+    $ curl localhost:8002/messages
+    ["msg1","msg2","msg3"]
+    ```
+
+## Локальний запуск
 
 1. Створюємо і активуємо venv (Python 3.13.5)
 2. Встановлюємо залежності
@@ -26,80 +149,8 @@
     # виправляємо на
     import common.replication_pb2 as replication__pb2
     ```
-5. Запуск в docker:
+5. Запуск:
     ```bash
-    docker-compose up --build
+    uvicorn master.src.main:app
+    uvicorn --port 8001 secondary.src.main:app
     ```
-6. Надсилаємо повідомлення
-    ```bash
-    $ curl -X POST localhost:8000/messages -d 'msg1'
-    {"status":"replicated"}
-    ```
-    <details>
-        <summary>Лог</summary>
-
-        master-1      | 2025-09-27T20:43:20,604 INFO     [main.py:46] Message append request: msg1
-        secondary2-1  | 2025-09-27T20:43:20,608 INFO     [main.py:28] Received grpc request. message_id: 0 | message_body: msg1
-        secondary2-1  | 2025-09-27T20:43:20,608 INFO     [main.py:23] Introducing 4 seconds of delay
-        secondary1-1  | 2025-09-27T20:43:20,620 INFO     [main.py:28] Received grpc request. message_id: 0 | message_body: msg1
-        secondary1-1  | 2025-09-27T20:43:20,620 INFO     [main.py:23] Introducing 5 seconds of delay
-        secondary2-1  | 2025-09-27T20:43:24,612 INFO     [main.py:36] Added message {"message_id": 0, "message_body": msg1} to replicated list
-        secondary1-1  | 2025-09-27T20:43:25,621 INFO     [main.py:36] Added message {"message_id": 0, "message_body": msg1} to replicated list
-        master-1      | 2025-09-27T20:43:25,622 INFO     [replication.py:38] Message 0 replicated to secondary1:50051: SUCCESS
-        master-1      | 2025-09-27T20:43:25,622 INFO     [replication.py:38] Message 0 replicated to secondary2:50051: SUCCESS
-        master-1      | INFO:     172.20.0.1:32982 - "POST /messages HTTP/1.1" 200 OK
-    </details>
-7. Перевіряємо реплікацію
-    ```bash
-    # master
-    $ curl localhost:8000/messages
-    ["msg1"]
-
-    # secondary1
-    $ curl localhost:8001/messages
-    ["msg1"]
-
-    # secondary2
-    $ curl localhost:8002/messages
-    ["msg1"]
-    ```
-8. Надсилаємо друге повідомлення
-    ```bash
-    $ curl -X POST localhost:8000/messages -d 'msg2'
-    {"status":"replicated"}
-    ```
-    <details>
-        <summary>Лог</summary>
-
-        master-1      | 2025-09-27T20:45:19,870 INFO     [main.py:46] Message append request: msg2
-        secondary2-1  | 2025-09-27T20:45:19,871 INFO     [main.py:28] Received grpc request. message_id: 1 | message_body: msg2
-        secondary1-1  | 2025-09-27T20:45:19,871 INFO     [main.py:28] Received grpc request. message_id: 1 | message_body: msg2
-        secondary1-1  | 2025-09-27T20:45:19,871 INFO     [main.py:23] Introducing 4 seconds of delay
-        secondary2-1  | 2025-09-27T20:45:19,871 INFO     [main.py:23] Introducing 6 seconds of delay
-        secondary1-1  | 2025-09-27T20:45:23,878 INFO     [main.py:36] Added message {"message_id": 1, "message_body": msg2} to replicated list
-        secondary2-1  | 2025-09-27T20:45:25,873 INFO     [main.py:36] Added message {"message_id": 1, "message_body": msg2} to replicated list
-        master-1      | 2025-09-27T20:45:25,874 INFO     [replication.py:38] Message 1 replicated to secondary1:50051: SUCCESS
-        master-1      | 2025-09-27T20:45:25,874 INFO     [replication.py:38] Message 1 replicated to secondary2:50051: SUCCESS
-        master-1      | INFO:     172.20.0.1:59812 - "POST /messages HTTP/1.1" 200 OK
-    </details>
-9. Перевіряємо реплікацію
-    ```bash
-    # master
-    $ curl localhost:8000/messages
-    ["msg1","msg2"]
-
-    # secondary1
-    $ curl localhost:8001/messages
-    ["msg1","msg2"]
-
-    # secondary2
-    $ curl localhost:8002/messages
-    ["msg1","msg2"]
-    ```
-
-## Додаток
-Запуск без докеру:
-```bash
-uvicorn master.src.main:app
-uvicorn --port 8001 secondary.src.main:app
-```
