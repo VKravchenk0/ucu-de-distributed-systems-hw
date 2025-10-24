@@ -18,7 +18,7 @@
 ## Запуск і перевірка
 1. Запуск в docker:
     ```bash
-    docker-compose up --build
+    docker compose up --build
     ```
 2. Надсилаємо повідомлення
     ```bash
