@@ -1,5 +1,6 @@
-# Replicated log homework. Iteration 1.
+# Replicated log homework.
 
+## Ітерація 1
 Рішення побудоване на python, з використанням FastAPI для публічних ендпойнтів і gRPC для міжсервісної комунікації.
 
 Проект містить три модулі:
@@ -9,28 +10,17 @@
 
 Адреси secondary-серверів задаються на мастері через змінну середовища `SECONDARY_ADDRESSES`.
 
-## Інструкція з запуску
+## Ітерація 2
+- Додано параметр write_concern
+- Додано дедублікацію повідомлень
+- Ордерінг повідомлень: зроблено за вимогами ітерації 3 - додано тимчасовий буфер, в якому тримаються повідомлення, що отримані поза чергою
 
-1. Створюємо і активуємо venv (Python 3.13.5)
-2. Встановлюємо залежності
-    ```bash
-    pip install -r requirements.txt
-    ```
-3. Компілюємо proto-файли
-    ```bash
-    python -m grpc_tools.protoc -I./common/protos --python_out=./common --grpc_python_out=./common ./common/protos/replication.proto
-    ```
-4. Виправляємо імпорти в скомпільованому файлі (`common/replication_pb2_grpc.py`). Щодо причини - див. https://github.com/protocolbuffers/protobuf/issues/1491.
-    ```python
-    import replication_pb2 as replication__pb2
-    # виправляємо на
-    import common.replication_pb2 as replication__pb2
-    ```
-5. Запуск в docker:
+## Запуск і перевірка
+1. Запуск в docker:
     ```bash
     docker-compose up --build
     ```
-6. Надсилаємо повідомлення
+2. Надсилаємо повідомлення
     ```bash
     $ curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
@@ -51,7 +41,7 @@
         master-1      | 2025-09-27T20:43:25,622 INFO     [replication.py:38] Message 0 replicated to secondary2:50051: SUCCESS
         master-1      | INFO:     172.20.0.1:32982 - "POST /messages HTTP/1.1" 200 OK
     </details>
-7. Перевіряємо реплікацію
+3. Перевіряємо реплікацію
     ```bash
     # master
     $ curl localhost:8000/messages
@@ -65,7 +55,7 @@
     $ curl localhost:8002/messages
     ["msg1"]
     ```
-8. Надсилаємо друге повідомлення
+4. Надсилаємо друге повідомлення
     ```bash
     $ curl -X POST localhost:8000/messages -d 'msg2'
     {"status":"replicated"}
@@ -84,7 +74,7 @@
         master-1      | 2025-09-27T20:45:25,874 INFO     [replication.py:38] Message 1 replicated to secondary2:50051: SUCCESS
         master-1      | INFO:     172.20.0.1:59812 - "POST /messages HTTP/1.1" 200 OK
     </details>
-9. Перевіряємо реплікацію
+5. Перевіряємо реплікацію
     ```bash
     # master
     $ curl localhost:8000/messages
@@ -99,9 +89,25 @@
     ["msg1","msg2"]
     ```
 
-## Додаток
-Запуск без докеру:
-```bash
-uvicorn master.src.main:app
-uvicorn --port 8001 secondary.src.main:app
-```
+## Локальний запуск
+
+1. Створюємо і активуємо venv (Python 3.13.5)
+2. Встановлюємо залежності
+    ```bash
+    pip install -r requirements.txt
+    ```
+3. Компілюємо proto-файли
+    ```bash
+    python -m grpc_tools.protoc -I./common/protos --python_out=./common --grpc_python_out=./common ./common/protos/replication.proto
+    ```
+4. Виправляємо імпорти в скомпільованому файлі (`common/replication_pb2_grpc.py`). Щодо причини - див. https://github.com/protocolbuffers/protobuf/issues/1491.
+    ```python
+    import replication_pb2 as replication__pb2
+    # виправляємо на
+    import common.replication_pb2 as replication__pb2
+    ```
+5. Запуск:
+    ```bash
+    uvicorn master.src.main:app
+    uvicorn --port 8001 secondary.src.main:app
+    ```
