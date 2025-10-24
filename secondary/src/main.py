@@ -21,7 +21,7 @@ replication_buffer: List[MessageDto] = []
 replicated_messages: List[MessageDto] = []
 
 def random_delay():
-    delay_sec = randint(3,7)
+    delay_sec = randint(2,10)
     log.info(f"Introducing { delay_sec } seconds of delay")
     sleep(delay_sec)
 
