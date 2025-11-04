@@ -5,6 +5,7 @@ import asyncio
 from typing import List
 from common import replication_pb2, replication_pb2_grpc
 import logging as log
+import secondary.src.settings as settings
 
 from common.dto import MessageDto
 
@@ -12,10 +13,10 @@ log.basicConfig(level=log.INFO,
                 format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                 datefmt='%Y-%m-%dT%H:%M:%S')
 
-def random_delay():
-    delay_sec = randint(2,10)
-    log.info(f"Introducing { delay_sec } seconds of delay")
-    sleep(delay_sec)
+def introduce_delay():
+    if settings.REPLICATION_DELAY_SEC is not None and settings.REPLICATION_DELAY_SEC > 0:
+        log.info(f"Introducing { settings.REPLICATION_DELAY_SEC } seconds of delay")
+        sleep(settings.REPLICATION_DELAY_SEC)
 
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
 
@@ -33,7 +34,7 @@ class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
         )
         log.info(f"Received request to replicate message {message_dto}")
         
-        random_delay()
+        introduce_delay()
         
         async with self.replication_lock:
             if self._message_is_duplicate(message_dto.message_id):
