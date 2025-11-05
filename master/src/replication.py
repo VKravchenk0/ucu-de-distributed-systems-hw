@@ -19,6 +19,7 @@ class Secondary:
     status: str = field(default="healthy", init=False)
     last_heartbeat_timestamp: float = field(default_factory=time.time)
     failed_heartbeats: int = field(default=0, init=False)
+    is_healthy_condition: asyncio.Condition = field(default_factory=asyncio.Condition, init=False)
 
     async def connect(self):
         self.channel = grpc.aio.insecure_channel(self.address)
@@ -27,6 +28,10 @@ class Secondary:
     async def close(self):
         await self.channel.close()
         self.stub = None
+
+    async def wait_until_healthy(self):
+        async with self.is_healthy_condition:
+            await self.is_healthy_condition.wait_for(lambda: self.status == "healthy")
 
 
 class ReplicationManager:
@@ -61,8 +66,12 @@ class ReplicationManager:
             )
             if response.alive:
                 secondary.failed_heartbeats = 0
+                old_status = secondary.status
                 secondary.status = "healthy"
                 secondary.last_heartbeat_timestamp = time.time()
+                if old_status != "healthy":
+                    async with secondary.condition:
+                        secondary.condition.notify_all()
         except Exception as e:
             secondary.failed_heartbeats += 1
             if secondary.failed_heartbeats >= settings.HEARTBEAT_FAILURE_THRESHOLD:
@@ -106,10 +115,8 @@ class ReplicationManager:
         retries = 0
         while True:
             if secondary.status == "unhealthy":
-                log.info(f"{secondary.address} is unhealthy. Waiting for recovery...")
-                # TODO: переробити на очікування поки status не буде healthy?
-                await asyncio.sleep(settings.HEARTBEAT_INTERVAL_SEC)
-                continue
+                log.info(f"{secondary.address} is unhealthy. Waiting for recovery")
+                await secondary.wait_until_healthy()
 
             try:
                 log.info(f'Attempting to replicate message {request} to {secondary.address}. Attempt number: {retries} ')
