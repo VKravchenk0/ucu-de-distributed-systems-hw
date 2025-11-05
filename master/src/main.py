@@ -42,6 +42,11 @@ def create_app() -> FastAPI:
 
     @app.post("/messages")
     async def append_message(request: MessageAppendRequest) -> dict[str, str]:
+        if not replication_manager.has_quorum():
+            return {
+                "status": "no_quorum"
+            }
+        
         async with messages_lock:
             previous_message_id = messages[-1].message_id if messages else None
             message_id = get_and_increment_message_id()
@@ -60,7 +65,7 @@ def create_app() -> FastAPI:
     
     @app.get("/health")
     def get_health() -> list[dict[str, str]]:
-        return replication_manager.get_secondaries_health()
+        return replication_manager.get_secondaries_status()
     
     return app
 

@@ -11,6 +11,8 @@ import time
 from common import replication_pb2_grpc
 from google.protobuf import empty_pb2
 
+from math import ceil
+
 @dataclass
 class Secondary:
     address: str
@@ -38,8 +40,9 @@ class ReplicationManager:
     def __init__(self, addresses: list[str]):
         log.info(f"Initializing with secondaries: {addresses}")
         self.secondaries: list[Secondary] = [Secondary(address=a) for a in addresses]
+        self.quorum_value = ceil((len(self.secondaries) + 1)/2)
 
-    def get_secondaries_health(self) -> list[dict[str, str]]:
+    def get_secondaries_status(self) -> list[dict[str, str]]:
         return [{"address": s.address, "status": s.status} for s in self.secondaries]
 
     async def connect(self):
@@ -52,6 +55,10 @@ class ReplicationManager:
         for s in self.secondaries:
             await s.close()
         log.info("Closed all channels.")
+
+    def has_quorum(self):
+        healthy_nodes_count = 1 + len([s for s in self.secondaries if s.status == "healthy"])
+        return healthy_nodes_count >= self.quorum_value
 
     async def _heartbeat_loop(self):
         while True:
@@ -70,8 +77,8 @@ class ReplicationManager:
                 secondary.status = "healthy"
                 secondary.last_heartbeat_timestamp = time.time()
                 if old_status != "healthy":
-                    async with secondary.condition:
-                        secondary.condition.notify_all()
+                    async with secondary.is_healthy_condition:
+                        secondary.is_healthy_condition.notify_all()
         except Exception as e:
             secondary.failed_heartbeats += 1
             if secondary.failed_heartbeats >= settings.HEARTBEAT_FAILURE_THRESHOLD:
