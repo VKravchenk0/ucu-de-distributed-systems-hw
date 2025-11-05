@@ -14,6 +14,8 @@ services:
       dockerfile: secondary/Dockerfile
     ports:
       - "8001:8001"
+    environment:
+      - REPLICATION_DELAY_SEC=3
 
   secondary2:
     build:
@@ -21,3 +23,5 @@ services:
       dockerfile: secondary/Dockerfile
     ports:
       - "8002:8001"
+    environment:
+      - REPLICATION_DELAY_SEC=5

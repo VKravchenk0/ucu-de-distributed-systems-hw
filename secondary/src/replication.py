@@ -2,9 +2,9 @@ from random import randint
 from time import sleep
 
 import asyncio
-from typing import List
 from common import replication_pb2, replication_pb2_grpc
 import logging as log
+import secondary.src.settings as settings
 
 from common.dto import MessageDto
 
@@ -12,18 +12,22 @@ log.basicConfig(level=log.INFO,
                 format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                 datefmt='%Y-%m-%dT%H:%M:%S')
 
-def random_delay():
-    delay_sec = randint(2,10)
-    log.info(f"Introducing { delay_sec } seconds of delay")
-    sleep(delay_sec)
+def introduce_delay():
+    if settings.REPLICATION_DELAY_SEC is not None and settings.REPLICATION_DELAY_SEC > 0:
+        log.info(f"Introducing { settings.REPLICATION_DELAY_SEC } seconds of delay")
+        sleep(settings.REPLICATION_DELAY_SEC)
 
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
 
-    def __init__(self, replicated_messages: List[int]):
+    def __init__(self, replicated_messages: list[int]):
         self.replicated_messages = replicated_messages
         self.replication_lock = asyncio.Lock()
-        self.received_messages_ids: List[int] = []
-        self.replication_buffer: List[MessageDto] = []
+        self.received_messages_ids: list[int] = []
+        self.replication_buffer: list[MessageDto] = []
+
+    async def Ping(self, request, context):
+        log.info("Received heartbeat ping")
+        return replication_pb2.PingResponse(alive=True)
 
     async def ReplicateMessage(self, request, context):
         message_dto = MessageDto(
@@ -33,7 +37,7 @@ class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
         )
         log.info(f"Received request to replicate message {message_dto}")
         
-        random_delay()
+        introduce_delay()
         
         async with self.replication_lock:
             if self._message_is_duplicate(message_dto.message_id):

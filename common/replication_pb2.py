@@ -22,21 +22,24 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11replication.proto\x12\x06\x63ommon\"x\n\x12ReplicationRequest\x12 \n\x13previous_message_id\x18\x01 \x01(\x05H\x00\x88\x01\x01\x12\x12\n\nmessage_id\x18\x02 \x01(\x05\x12\x14\n\x0cmessage_body\x18\x03 \x01(\tB\x16\n\x14_previous_message_id\"5\n\x13ReplicationResponse\x12\x1e\n\x06status\x18\x01 \x01(\x0e\x32\x0e.common.Status*:\n\x06Status\x12\x16\n\x12STATUS_UNSPECIFIED\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\x0b\n\x07\x46\x41ILURE\x10\x02\x32\x61\n\x12ReplicationService\x12K\n\x10ReplicateMessage\x12\x1a.common.ReplicationRequest\x1a\x1b.common.ReplicationResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11replication.proto\x12\x06\x63ommon\x1a\x1bgoogle/protobuf/empty.proto\"x\n\x12ReplicationRequest\x12 \n\x13previous_message_id\x18\x01 \x01(\x05H\x00\x88\x01\x01\x12\x12\n\nmessage_id\x18\x02 \x01(\x05\x12\x14\n\x0cmessage_body\x18\x03 \x01(\tB\x16\n\x14_previous_message_id\"5\n\x13ReplicationResponse\x12\x1e\n\x06status\x18\x01 \x01(\x0e\x32\x0e.common.Status\"\x1d\n\x0cPingResponse\x12\r\n\x05\x61live\x18\x01 \x01(\x08*:\n\x06Status\x12\x16\n\x12STATUS_UNSPECIFIED\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01\x12\x0b\n\x07\x46\x41ILURE\x10\x02\x32\x97\x01\n\x12ReplicationService\x12K\n\x10ReplicateMessage\x12\x1a.common.ReplicationRequest\x1a\x1b.common.ReplicationResponse\x12\x34\n\x04Ping\x12\x16.google.protobuf.Empty\x1a\x14.common.PingResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'replication_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_STATUS']._serialized_start=206
-  _globals['_STATUS']._serialized_end=264
-  _globals['_REPLICATIONREQUEST']._serialized_start=29
-  _globals['_REPLICATIONREQUEST']._serialized_end=149
-  _globals['_REPLICATIONRESPONSE']._serialized_start=151
-  _globals['_REPLICATIONRESPONSE']._serialized_end=204
-  _globals['_REPLICATIONSERVICE']._serialized_start=266
-  _globals['_REPLICATIONSERVICE']._serialized_end=363
+  _globals['_STATUS']._serialized_start=266
+  _globals['_STATUS']._serialized_end=324
+  _globals['_REPLICATIONREQUEST']._serialized_start=58
+  _globals['_REPLICATIONREQUEST']._serialized_end=178
+  _globals['_REPLICATIONRESPONSE']._serialized_start=180
+  _globals['_REPLICATIONRESPONSE']._serialized_end=233
+  _globals['_PINGRESPONSE']._serialized_start=235
+  _globals['_PINGRESPONSE']._serialized_end=264
+  _globals['_REPLICATIONSERVICE']._serialized_start=327
+  _globals['_REPLICATIONSERVICE']._serialized_end=478
 # @@protoc_insertion_point(module_scope)
