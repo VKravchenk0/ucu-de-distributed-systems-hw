@@ -16,121 +16,56 @@
 - Ордерінг повідомлень: зроблено за вимогами ітерації 3 - додано тимчасовий буфер, в якому тримаються повідомлення, що отримані поза чергою
 
 ## Запуск і перевірка
-1. Запуск в docker:
+1. Термінал 1: запуск додатку
     ```bash
     docker compose up --build
+    ```
+
+2. Термінал 2: зупинка secondary2
+    ```bash
     docker ps -q --filter "name=secondary2" | xargs -r docker pause
     ```
-2. Надсилаємо повідомлення, write_concern == 2 (Master + один secondary)
+
+3. Термінал 2: відсилаємо перші три повідомлення. Після write_concern == 3 термінал буде заблоковано очікуванням:
     ```bash
-    $ curl -X POST "localhost:8000/messages" \
+    curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
-        -d '{"message": "msg1", "write_concern": 2}'
-    {"status":"replicated"}
-    ```
-    <details>
-        <summary>Лог</summary>
+        -d '{"message": "msg1", "write_concern": 1}'
 
-        master-1      | 2025-10-24T14:58:06,645 INFO     [main.py:52] Message append request: message='msg1' write_concern=2
-        master-1      | 2025-10-24T14:58:06,645 INFO     [replication.py:29] Replicating message dto: MessageDto(previous_message_id=None, message_id=0, message_body='msg1')
-        secondary2-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=None, message_id=0, message_body='msg1')
-        secondary2-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:17] Introducing 2 seconds of delay
-        secondary1-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=None, message_id=0, message_body='msg1')
-        secondary1-1  | 2025-10-24T14:58:06,658 INFO     [replication.py:17] Introducing 10 seconds of delay
-        secondary2-1  | 2025-10-24T14:58:08,664 INFO     [replication.py:48] Message 0 replicated
-        master-1      | 2025-10-24T14:58:08,668 INFO     [replication.py:49] Replication result: ('secondary2:50051', status: SUCCESS
-        master-1      | )
-        master-1      | 2025-10-24T14:58:08,668 INFO     [replication.py:53] Success count 2 has reached the write_concern of 2
-        master-1      | INFO:     172.20.0.1:38574 - "POST /messages HTTP/1.1" 200 OK ## Мастер повернув відповідь клієнту
-        secondary1-1  | 2025-10-24T14:58:16,658 INFO     [replication.py:48] Message 0 replicated
-    </details>
-3. Перевіряємо реплікацію
-    ```bash
-    # master
-    $ curl localhost:8000/messages
-    ["msg1"]
-
-    # secondary1
-    $ curl localhost:8001/messages
-    ["msg1"]
-
-    # secondary2
-    $ curl localhost:8002/messages
-    ["msg1"]
-    ```
-4. Надсилаємо друге повідомлення, write_concern == 1 (тільки Master)
-    ```bash
-    $ curl -X POST "localhost:8000/messages" \
+    curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
-        -d '{"message": "msg2", "write_concern": 1}'
-    {"status":"replicated"}
-    ```
-    <details>
-        <summary>Лог</summary>
+        -d '{"message": "msg2", "write_concern": 2}'
 
-        master-1      | 2025-10-24T15:00:04,580 INFO     [main.py:52] Message append request: message='msg2' write_concern=1
-        master-1      | 2025-10-24T15:00:04,580 INFO     [replication.py:29] Replicating message dto: MessageDto(previous_message_id=0, message_id=1, message_body='msg2')
-        master-1      | 2025-10-24T15:00:04,580 INFO     [replication.py:42] write_concern is 1. Replicating on the background
-        master-1      | INFO:     172.20.0.1:58638 - "POST /messages HTTP/1.1" 200 OK ## Мастер повернув відповідь клієнту
-        secondary1-1  | 2025-10-24T15:00:04,582 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=0, message_id=1, message_body='msg2')
-        secondary1-1  | 2025-10-24T15:00:04,582 INFO     [replication.py:17] Introducing 10 seconds of delay
-        secondary2-1  | 2025-10-24T15:00:04,582 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=0, message_id=1, message_body='msg2')
-        secondary2-1  | 2025-10-24T15:00:04,583 INFO     [replication.py:17] Introducing 9 seconds of delay
-        secondary2-1  | 2025-10-24T15:00:13,584 INFO     [replication.py:48] Message 1 replicated
-        secondary1-1  | 2025-10-24T15:00:14,584 INFO     [replication.py:48] Message 1 replicated
-    </details>
-5. Перевіряємо реплікацію
-    ```bash
-    # master
-    $ curl localhost:8000/messages
-    ["msg1","msg2"]
-
-    # secondary1
-    $ curl localhost:8001/messages
-    ["msg1","msg2"]
-
-    # secondary2
-    $ curl localhost:8002/messages
-    ["msg1","msg2"]
-    ```
-6. Надсилаємо третє повідомлення, write_concern == 3 (Master + два Secondary)
-    ```bash
-    $ curl -X POST "localhost:8000/messages" \
+    curl -X POST "localhost:8000/messages" \
         -H "Content-Type: application/json" \
         -d '{"message": "msg3", "write_concern": 3}'
-    {"status":"replicated"}
     ```
-    <details>
-        <summary>Лог</summary>
 
-        master-1      | 2025-10-24T15:01:41,247 INFO     [main.py:52] Message append request: message='msg3' write_concern=3
-        master-1      | 2025-10-24T15:01:41,247 INFO     [replication.py:29] Replicating message dto: MessageDto(previous_message_id=1, message_id=2, message_body='msg3')
-        secondary1-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=1, message_id=2, message_body='msg3')
-        secondary1-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:17] Introducing 10 seconds of delay
-        secondary2-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:34] Received request to replicate message MessageDto(previous_message_id=1, message_id=2, message_body='msg3')
-        secondary2-1  | 2025-10-24T15:01:41,248 INFO     [replication.py:17] Introducing 3 seconds of delay
-        secondary2-1  | 2025-10-24T15:01:43,350 INFO     [replication.py:48] Message 2 replicated
-        master-1      | 2025-10-24T15:01:43,352 INFO     [replication.py:49] Replication result: ('secondary2:50051', status: SUCCESS
-        master-1      | )
-        secondary1-1  | 2025-10-24T15:01:50,351 INFO     [replication.py:48] Message 2 replicated
-        master-1      | INFO:     172.20.0.1:58998 - "POST /messages HTTP/1.1" 200 OK ## Мастер повернув відповідь клієнту
-        master-1      | 2025-10-24T15:01:50,352 INFO     [replication.py:49] Replication result: ('secondary1:50051', status: SUCCESS
-        master-1      | )
-        master-1      | 2025-10-24T15:01:50,352 INFO     [replication.py:53] Success count 3 has reached the write_concern of 3
-    </details>
-7. Перевіряємо реплікацію
+4. Термінал 3: msg4, w=1:
+    ```bash
+    curl -X POST "localhost:8000/messages" \
+        -H "Content-Type: application/json" \
+        -d '{"message": "msg4", "write_concern": 1}'
+    ```
+
+5. Піднімаємо secondary2:
+    ```bash
+    docker ps -q --filter "name=secondary2" | xargs -r docker unpause
+    ```
+
+6. Чекаємо кілька секунд, перевіряємо реплікацію:
     ```bash
     # master
     $ curl localhost:8000/messages
-    ["msg1","msg2","msg3"]
+    ["msg1","msg2","msg3","msg4"]
 
     # secondary1
     $ curl localhost:8001/messages
-    ["msg1","msg2","msg3"]
+    ["msg1","msg2","msg3","msg4"]
 
     # secondary2
     $ curl localhost:8002/messages
-    ["msg1","msg2","msg3"]
+    ["msg1","msg2","msg3","msg4"]
     ```
 
 ## Локальний запуск
@@ -156,47 +91,3 @@
     uvicorn --port 8001 secondary.src.main:app
     ```
 
-
-# self-check:
-
-```bash
-docker compose up --build
-docker ps -q --filter "name=secondary2" | xargs -r docker pause
-```
-
-```bash
-curl -X POST "localhost:8000/messages" \
-    -H "Content-Type: application/json" \
-    -d '{"message": "msg1", "write_concern": 1}'
-
-curl -X POST "localhost:8000/messages" \
-    -H "Content-Type: application/json" \
-    -d '{"message": "msg2", "write_concern": 2}'
-
-curl -X POST "localhost:8000/messages" \
-    -H "Content-Type: application/json" \
-    -d '{"message": "msg3", "write_concern": 3}'
-
-curl -X POST "localhost:8000/messages" \
-    -H "Content-Type: application/json" \
-    -d '{"message": "msg4", "write_concern": 1}'
-```
-
-```bash
-docker ps -q --filter "name=secondary2" | xargs -r docker unpause
-```
-
-Перевіряємо реплікацію
-```bash
-# master
-$ curl localhost:8000/messages
-["msg1"]
-
-# secondary1
-$ curl localhost:8001/messages
-["msg1"]
-
-# secondary2
-$ curl localhost:8002/messages
-["msg1"]
-```
