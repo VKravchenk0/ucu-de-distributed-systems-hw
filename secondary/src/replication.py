@@ -2,7 +2,6 @@ from random import randint
 from time import sleep
 
 import asyncio
-from typing import List
 from common import replication_pb2, replication_pb2_grpc
 import logging as log
 import secondary.src.settings as settings
@@ -20,11 +19,15 @@ def introduce_delay():
 
 class ReplicationService(replication_pb2_grpc.ReplicationServiceServicer):
 
-    def __init__(self, replicated_messages: List[int]):
+    def __init__(self, replicated_messages: list[int]):
         self.replicated_messages = replicated_messages
         self.replication_lock = asyncio.Lock()
-        self.received_messages_ids: List[int] = []
-        self.replication_buffer: List[MessageDto] = []
+        self.received_messages_ids: list[int] = []
+        self.replication_buffer: list[MessageDto] = []
+
+    async def Ping(self, request, context):
+        log.info("Received heartbeat ping")
+        return replication_pb2.PingResponse(alive=True)
 
     async def ReplicateMessage(self, request, context):
         message_dto = MessageDto(

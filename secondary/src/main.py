@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-from typing import List
 import grpc
 from fastapi import FastAPI
 from common import replication_pb2_grpc
@@ -13,7 +12,7 @@ log.basicConfig(level=log.INFO,
                 format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                 datefmt='%Y-%m-%dT%H:%M:%S')
 
-replicated_messages: List[MessageDto] = []
+replicated_messages: list[MessageDto] = []
 
 async def serve_grpc(server: grpc.aio.Server):
     replication_pb2_grpc.add_ReplicationServiceServicer_to_server(ReplicationService(replicated_messages), server)
@@ -40,7 +39,7 @@ def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.get("/messages")
-    async def get_messages() -> List[str]:
+    async def get_messages() -> list[str]:
         return map(lambda m: m.message_body, replicated_messages)
 
     return app

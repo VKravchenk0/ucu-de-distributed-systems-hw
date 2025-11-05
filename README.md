@@ -19,6 +19,7 @@
 1. Запуск в docker:
     ```bash
     docker compose up --build
+    docker ps -q --filter "name=secondary2" | xargs -r docker pause
     ```
 2. Надсилаємо повідомлення, write_concern == 2 (Master + один secondary)
     ```bash
@@ -154,3 +155,48 @@
     uvicorn master.src.main:app
     uvicorn --port 8001 secondary.src.main:app
     ```
+
+
+# self-check:
+
+```bash
+docker compose up --build
+docker ps -q --filter "name=secondary2" | xargs -r docker pause
+```
+
+```bash
+curl -X POST "localhost:8000/messages" \
+    -H "Content-Type: application/json" \
+    -d '{"message": "msg1", "write_concern": 1}'
+
+curl -X POST "localhost:8000/messages" \
+    -H "Content-Type: application/json" \
+    -d '{"message": "msg2", "write_concern": 2}'
+
+curl -X POST "localhost:8000/messages" \
+    -H "Content-Type: application/json" \
+    -d '{"message": "msg3", "write_concern": 3}'
+
+curl -X POST "localhost:8000/messages" \
+    -H "Content-Type: application/json" \
+    -d '{"message": "msg4", "write_concern": 1}'
+```
+
+```bash
+docker ps -q --filter "name=secondary2" | xargs -r docker unpause
+```
+
+Перевіряємо реплікацію
+```bash
+# master
+$ curl localhost:8000/messages
+["msg1"]
+
+# secondary1
+$ curl localhost:8001/messages
+["msg1"]
+
+# secondary2
+$ curl localhost:8002/messages
+["msg1"]
+```

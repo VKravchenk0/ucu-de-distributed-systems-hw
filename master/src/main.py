@@ -1,7 +1,6 @@
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Body
-from typing import Dict, List
 import logging as log
 import asyncio
 
@@ -17,7 +16,7 @@ log.basicConfig(level=log.INFO,
 
 message_id_seq = 0
 
-messages: List[MessageDto] = []
+messages: list[MessageDto] = []
 messages_lock = asyncio.Lock()
 
 replication_manager = ReplicationManager(settings.SECONDARY_ADDRESSES)
@@ -42,7 +41,7 @@ def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/messages")
-    async def append_message(request: MessageAppendRequest) -> Dict[str, str]:
+    async def append_message(request: MessageAppendRequest) -> dict[str, str]:
         async with messages_lock:
             previous_message_id = messages[-1].message_id if messages else None
             message_id = get_and_increment_message_id()
@@ -56,9 +55,13 @@ def create_app() -> FastAPI:
         }
     
     @app.get("/messages")
-    def get_messages() -> List[str]:
+    def get_messages() -> list[str]:
         return map(lambda m: m.message_body, messages)
-
+    
+    @app.get("/health")
+    def get_health() -> list[dict[str, str]]:
+        return replication_manager.get_secondaries_health()
+    
     return app
 
 app = create_app()

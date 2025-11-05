@@ -3,6 +3,7 @@
 import grpc
 import warnings
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 import common.replication_pb2 as replication__pb2
 
 GRPC_GENERATED_VERSION = '1.74.0'
@@ -39,12 +40,23 @@ class ReplicationServiceStub(object):
                 request_serializer=replication__pb2.ReplicationRequest.SerializeToString,
                 response_deserializer=replication__pb2.ReplicationResponse.FromString,
                 _registered_method=True)
+        self.Ping = channel.unary_unary(
+                '/common.ReplicationService/Ping',
+                request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                response_deserializer=replication__pb2.PingResponse.FromString,
+                _registered_method=True)
 
 
 class ReplicationServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def ReplicateMessage(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Ping(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +69,11 @@ def add_ReplicationServiceServicer_to_server(servicer, server):
                     servicer.ReplicateMessage,
                     request_deserializer=replication__pb2.ReplicationRequest.FromString,
                     response_serializer=replication__pb2.ReplicationResponse.SerializeToString,
+            ),
+            'Ping': grpc.unary_unary_rpc_method_handler(
+                    servicer.Ping,
+                    request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                    response_serializer=replication__pb2.PingResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +103,33 @@ class ReplicationService(object):
             '/common.ReplicationService/ReplicateMessage',
             replication__pb2.ReplicationRequest.SerializeToString,
             replication__pb2.ReplicationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Ping(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/common.ReplicationService/Ping',
+            google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            replication__pb2.PingResponse.FromString,
             options,
             channel_credentials,
             insecure,

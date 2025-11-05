@@ -1,8 +1,11 @@
 syntax = "proto3";
 package common;
 
+import "google/protobuf/empty.proto";
+
 service ReplicationService {
     rpc ReplicateMessage(ReplicationRequest) returns (ReplicationResponse);
+    rpc Ping(google.protobuf.Empty) returns (PingResponse);
 }
 
 message ReplicationRequest {
@@ -19,4 +22,8 @@ enum Status {
     STATUS_UNSPECIFIED = 0;
     SUCCESS = 1;
     FAILURE = 2;
+}
+
+message PingResponse {
+    bool alive = 1;
 }
