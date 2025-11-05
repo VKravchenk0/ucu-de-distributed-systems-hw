@@ -3,6 +3,7 @@ import time
 import logging as log
 from common import replication_pb2
 from common.dto import MessageDto
+import master.src.settings as settings
 
 from dataclasses import dataclass, field
 import grpc
@@ -10,24 +11,22 @@ import time
 from common import replication_pb2_grpc
 from google.protobuf import empty_pb2
 
-# todo переробити з dataclass?
 @dataclass
 class Secondary:
     address: str
     channel: grpc.aio.Channel = field(default=None, init=False)
     stub: replication_pb2_grpc.ReplicationServiceStub = field(default=None, init=False)
-    status: str = field(default="healthy", init=False)        # healthy / suspected / unhealthy
-    last_heartbeat: float = field(default_factory=time.time)  # last successful heartbeat timestamp
+    status: str = field(default="healthy", init=False)
+    last_heartbeat_timestamp: float = field(default_factory=time.time)
     failed_heartbeats: int = field(default=0, init=False)
 
     async def connect(self):
         self.channel = grpc.aio.insecure_channel(self.address)
         self.stub = replication_pb2_grpc.ReplicationServiceStub(self.channel)
 
-# todo: винести в env
-HEARTBEAT_INTERVAL_SEC = 5
-HEARTBEAT_TIMEOUT_SEC = 10
-HEARTBEAT_FAILURE_THRESHOLD = 2
+    async def close(self):
+        await self.channel.close()
+        self.stub = None
 
 
 class ReplicationManager:
@@ -46,28 +45,27 @@ class ReplicationManager:
 
     async def close(self):
         for s in self.secondaries:
-            await s.channel.close()
+            await s.close()
         log.info("Closed all channels.")
 
     async def _heartbeat_loop(self):
-        """Runs forever, periodically checking health of each secondary."""
         while True:
             await asyncio.gather(*(self._send_heartbeat(s) for s in self.secondaries))
-            await asyncio.sleep(HEARTBEAT_INTERVAL_SEC)
+            await asyncio.sleep(settings.HEARTBEAT_INTERVAL_SEC)
 
     async def _send_heartbeat(self, secondary: Secondary):
         try:
             response = await asyncio.wait_for(
                 secondary.stub.Ping(empty_pb2.Empty()),
-                timeout=HEARTBEAT_TIMEOUT_SEC,
+                timeout=settings.HEARTBEAT_TIMEOUT_SEC,
             )
             if response.alive:
                 secondary.failed_heartbeats = 0
                 secondary.status = "healthy"
-                secondary.last_heartbeat = time.time()
+                secondary.last_heartbeat_timestamp = time.time()
         except Exception as e:
             secondary.failed_heartbeats += 1
-            if secondary.failed_heartbeats >= HEARTBEAT_FAILURE_THRESHOLD:
+            if secondary.failed_heartbeats >= settings.HEARTBEAT_FAILURE_THRESHOLD:
                 secondary.status = "unhealthy"
             else:
                 secondary.status = "suspected"
@@ -90,7 +88,7 @@ class ReplicationManager:
         ]
 
         if write_concern == 1:
-            log.info("write_concern=1 → async background replication.")
+            log.info("write_concern is 1. Replicating on the background")
             return 1
 
         success_count = 1
@@ -110,7 +108,7 @@ class ReplicationManager:
             if secondary.status == "unhealthy":
                 log.info(f"{secondary.address} is unhealthy. Waiting for recovery...")
                 # TODO: переробити на очікування поки status не буде healthy?
-                await asyncio.sleep(HEARTBEAT_INTERVAL_SEC)
+                await asyncio.sleep(settings.HEARTBEAT_INTERVAL_SEC)
                 continue
 
             try:
